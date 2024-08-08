@@ -4,7 +4,6 @@ pragma solidity ^0.8.24;
 import "@openzeppelin/contracts/proxy/Clones.sol";
 
 contract AuctionFactory {
-
     enum PricingLogic {
         LinearFunction,
         QuadraticFunction,
@@ -12,23 +11,19 @@ contract AuctionFactory {
     }
     using Clones for address;
 
-
-    
-    mapping(PricingLogic => address) public enumToPricingLogicAddress;
-
-    constructor(){
-        
-    }
-
+    constructor() {}
 
     //TO DO
-    function createAuction(address _tokenAddress, uint256 numberOfTokens, uint256 startingPrice, PricingLogic _logic) external returns(address) {
-
+    function createAuction(
+        address _tokenAddress,
+        uint256 numberOfTokens,
+        uint256 startingPrice,
+        PricingLogic _logic,
+        address _acceptedStable,
+        address _creator
+    ) external returns (address) {
+        
     }
-
-    // Add access control here
-    function addPricingLogic(address _logicAddress, PricingLogic _logic) external {
-        enumToPricingLogicAddress[_logic] = _logicAddress;
-    }
-
 }
+
+// Didnt use a library because once in production you can't change logic, but external contract allows for it
