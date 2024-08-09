@@ -1,23 +1,23 @@
 // SPDX-License-Identifier: UNLICENSED
 pragma solidity ^0.8.24;
 
-import "./SharedStorage.sol";
+import "../../Storage.sol";
 import "@openzeppelin/contracts-upgradeable/proxy/utils/Initializable.sol";
-import "./libraries/QuadraticPricingLogicLibrary.sol";
+import "../../libraries/QuadraticPricingLogicLibrary.sol";
 import "@openzeppelin/contracts/token/ERC20/utils/SafeERC20.sol";
-import "./interfaces/ISingleAuction.sol";
-import "./dataStructures/UserDefinedTypes.sol";
+import "../../interfaces/ISingleAuction.sol";
+import "../../data_structures/UserDefinedTypes.sol";
 
-contract QuadraticAuction is ISingleAuction, Initializable, SharedStorage {
+contract QuadraticAuction is ISingleAuction, Initializable, Storage {
     using SafeERC20 for IERC20;
 
     modifier onlyCreator() {
-        require(msg.sender == creator, UserDefinedTypes.ACCESS_FORBIDDEN);
+        require(msg.sender == creator, Errors.ACCESS_FORBIDDEN);
         _;
     }
 
     function initialize(
-        UserDefinedTypes.AuctionCreationParams memory _params
+        AuctionCreationParams memory _params
     ) public initializer {
         totalNumberOfTokens = _params.numberOfTokens;
         startingBidPrice = _params.startingPrice;
@@ -29,7 +29,7 @@ contract QuadraticAuction is ISingleAuction, Initializable, SharedStorage {
     }
 
     function setSlope(uint256 _m) external {
-        require(_m < 1 ether || _m > 0.01 ether, UserDefinedTypes.INVALID_RANGE);
+        require(_m < 1 ether || _m > 0.01 ether, Errors.INVALID_RANGE);
         chargePerUnitToken = _m;
     }
 
@@ -46,8 +46,11 @@ contract QuadraticAuction is ISingleAuction, Initializable, SharedStorage {
     }
 
     function buyTokens(uint256 unitsOfTokensToBuy) external payable {
-        require(unitsOfTokensToBuy > 0, UserDefinedTypes.BAD_AMOUNT);
+        require(chargePerUnitToken != 0, "Set charge per unit token!");
+        require(unitsOfTokensToBuy > 0, Errors.BAD_AMOUNT);
         require(totalTokensSold + unitsOfTokensToBuy <= totalNumberOfTokens);
+        require(block.timestamp >= auctionStartTime, "Auction is yet to being");
+        require(block.timestamp <= auctionEndTime, "Auction is over!");
         uint256 purchasePrice = QuadraticPricingLogicLib.calculateTotalPrice(
                 unitsOfTokensToBuy,
                 totalTokensSold,
@@ -57,7 +60,7 @@ contract QuadraticAuction is ISingleAuction, Initializable, SharedStorage {
 
         require(
             msg.value >= purchasePrice,
-            UserDefinedTypes.INSUFFICIENT_TOKEN_BALANCE
+            Errors.INSUFFICIENT_TOKEN_BALANCE
         );
 
         balances[msg.sender] += unitsOfTokensToBuy;
@@ -66,12 +69,15 @@ contract QuadraticAuction is ISingleAuction, Initializable, SharedStorage {
 
         //pay via base token
         (bool success, ) = address(this).call{value: msg.value}("");
-        require(success, UserDefinedTypes.TRANSACTION_FAILED);
+        require(success, Errors.TRANSACTION_FAILED);
     }
 
     function buyTokensWithStableCoin(uint256 unitsOfTokensToBuy) external {
-        require(unitsOfTokensToBuy > 0, UserDefinedTypes.BAD_AMOUNT);
+        require(chargePerUnitToken != 0, "Set charge per unit token!");
+        require(unitsOfTokensToBuy > 0, Errors.BAD_AMOUNT);
         require(totalTokensSold + unitsOfTokensToBuy <= totalNumberOfTokens);
+        require(block.timestamp >= auctionStartTime, "Auction is yet to being");
+        require(block.timestamp <= auctionEndTime, "Auction is over!");
 
         uint256 purchasePrice = QuadraticPricingLogicLib.calculateTotalPrice(
                 unitsOfTokensToBuy,
@@ -81,7 +87,7 @@ contract QuadraticAuction is ISingleAuction, Initializable, SharedStorage {
             );
         require(
             IERC20(acceptableStableCoin).balanceOf(msg.sender) > purchasePrice,
-            UserDefinedTypes.INSUFFICIENT_TOKEN_BALANCE
+            Errors.INSUFFICIENT_TOKEN_BALANCE
         );
 
         balances[msg.sender] += unitsOfTokensToBuy;
@@ -95,20 +101,36 @@ contract QuadraticAuction is ISingleAuction, Initializable, SharedStorage {
         );
     }
 
-    //TO DO: Add Access control
+    function claimPurchasedTokens() external {
+        uint256 amountDue = balances[msg.sender];
+        require(amountDue > 0, Errors.NO_TOKENS_TO_CLAIM);
+        require(
+            block.timestamp >= auctionEndTime,
+            Errors.CLAIM_AFTER_AUCTION
+        );
+
+        balances[msg.sender] = 0;
+        IERC20(tokenAddress).safeTransfer(msg.sender, amountDue);
+        emit ClaimedPurchasedTokens(msg.sender, amountDue, tokenAddress);
+    }
+
     function withdrawRemainingBaseToken() external onlyCreator {
+        uint256 amount = address(this).balance;
         (bool success, ) = payable(creator).call{value: address(this).balance}(
             ""
         );
-        require(success, UserDefinedTypes.TRANSACTION_FAILED);
+        require(success, Errors.TRANSACTION_FAILED);
+
+        emit WithdrewBaseTokens(msg.sender, amount);
     }
 
-    //TO DO: Add Access control
     function withdrawUnsoldTokens() external onlyCreator {
+        uint256 amount = totalNumberOfTokens - totalTokensSold;
         IERC20(tokenAddress).safeTransfer(
             creator,
             totalNumberOfTokens - totalTokensSold
         );
+        emit WithdrewUnsoldTokens(msg.sender, amount);
     }
 }
 

@@ -3,7 +3,7 @@ pragma solidity ^0.8.24;
 
 
 
-contract SharedStorage {
+contract Storage {
     event TokensPurchased(address indexed buyer, uint256 amount, uint256 totalPrice);
 
     uint256 public totalNumberOfTokens;
@@ -15,6 +15,7 @@ contract SharedStorage {
     address public creator;
     uint256 public auctionStartTime;
     uint256 public auctionEndTime;
+    uint8 public modelType;
 
     
 

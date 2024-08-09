@@ -2,33 +2,47 @@
 pragma solidity ^0.8.24;
 
 import "@openzeppelin/contracts/proxy/Clones.sol";
-import "./dataStructures/UserDefinedTypes.sol";
+import "./data_structures/UserDefinedTypes.sol";
 import "./interfaces/ISingleAuction.sol";
-contract AuctionFactory {
+import "@openzeppelin/contracts/token/ERC20/utils/SafeERC20.sol";
+import "./internal_contracts/ModelVerifier.sol";
+import "@openzeppelin/contracts/access/Ownable.sol";
+contract AuctionFactory is Ownable, ModelVerifier {
     using Clones for address;
+    using SafeERC20 for IERC20;
 
-    mapping (UserDefinedTypes.PricingLogic => address) public preferredPricingLogic;
-    address public linearPricingModel;
-    address public quadraticPricingModel;
-    address public polynomialPricingModel;
+    address public masterAuctionEntryPoint;
+    AuctionCreationParams[] public auctionsCreated;
 
-    constructor() {
-
+    constructor(address _masterAuctionEntryPoint) Ownable(msg.sender) {
+        masterAuctionEntryPoint = _masterAuctionEntryPoint;
     }
 
     //TO DO
     function createAuction(
-        UserDefinedTypes.AuctionCreationParams memory _params
+        AuctionCreationParams memory _params
     ) external returns (address) {
-        address model = (preferredPricingLogic[_params.logic]).clone();
-        ISingleAuction(model).initialize(_params);
-        return model;  
+        address masterModel = masterAuctionEntryPoint.clone();
+        ISingleAuction(masterModel).initialize(_params);
+        require(IERC20(_params.tokenAddress).balanceOf(msg.sender) >= _params.numberOfTokens);
+        IERC20(_params.tokenAddress).safeTransferFrom(msg.sender, masterModel, _params.numberOfTokens);
+        auctionsCreated.push(_params);
+        return masterModel;  
     }
 
-    //TO DO: Add guard
-    function updatePricingModel(UserDefinedTypes.PricingLogic _logic, address _model) public {
-        preferredPricingLogic[_logic] = _model;
+    //Add guard
+    function updateMasterModel(address _newMasterModel) external onlyOwner {
+        confirmContractFeatures(_newMasterModel);
+        masterAuctionEntryPoint = _newMasterModel;
     }
+
+
+    function getAllAuctionsCreated() external view returns(AuctionCreationParams[] memory) {
+        // AuctionCreationParams[] memory arrInMemory = new AuctionCreationParams[](auctionsCreated.length);
+        // arrInMemory = auctionsCreated;
+        return auctionsCreated;
+    }
+
+    
 }
 
-// Didnt use a library because once in production you can't change logic, but external contract allows for it
