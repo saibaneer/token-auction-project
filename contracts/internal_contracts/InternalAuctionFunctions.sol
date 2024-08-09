@@ -35,6 +35,11 @@ abstract contract InternalAuction is
         modelType = uint8(_params.logic);
     }
 
+    function _fundAuction(address _caller) internal onlyCreator {
+        require(IERC20(tokenAddress).balanceOf(_caller) >= totalNumberOfTokens, Errors.INSUFFICIENT_TOKEN_BALANCE);
+        IERC20(tokenAddress).safeTransferFrom(_caller, address(this), totalNumberOfTokens);
+    }
+
     function _setSlope(uint256 _m) internal onlyCreator {
         require(
             _m < 1 ether || _m > 0.01 ether,
@@ -45,9 +50,10 @@ abstract contract InternalAuction is
     }
 
     function _buyTokens(uint256 unitsOfTokensToBuy, address _caller) internal {
+        require(IERC20(tokenAddress).balanceOf(address(this)) > 0 , Errors.INSUFFICIENT_TOKEN_BALANCE_IN_CONTRACT);
         require(chargePerUnitToken != 0, Errors.SET_CHARGE_PER_UNIT_TOKEN);
         require(unitsOfTokensToBuy > 0, Errors.BAD_AMOUNT);
-        require(totalTokensSold + unitsOfTokensToBuy <= totalNumberOfTokens);
+        require((totalTokensSold + unitsOfTokensToBuy)*10**18 <= totalNumberOfTokens);
         require(block.timestamp >= auctionStartTime, Errors.AUCTION_IS_YET_TO_BEGIN);
         require(block.timestamp <= auctionEndTime, Errors.AUCTION_HAS_ENDED);
 
@@ -72,7 +78,7 @@ abstract contract InternalAuction is
 
         balances[_caller] += unitsOfTokensToBuy;
         totalTokensSold += unitsOfTokensToBuy;
-        totalNumberOfTokens -= unitsOfTokensToBuy;
+        // totalNumberOfTokens -= unitsOfTokensToBuy;
         uint256 amount = msg.value;
 
         //pay via base token
@@ -87,7 +93,7 @@ abstract contract InternalAuction is
     ) internal {
         require(chargePerUnitToken != 0, Errors.SET_CHARGE_PER_UNIT_TOKEN);
         require(unitsOfTokensToBuy > 0, Errors.BAD_AMOUNT);
-        require(totalTokensSold + unitsOfTokensToBuy <= totalNumberOfTokens);
+        require((totalTokensSold + unitsOfTokensToBuy)*10**18 <= totalNumberOfTokens);
         require(block.timestamp >= auctionStartTime, Errors.AUCTION_IS_YET_TO_BEGIN);
         require(block.timestamp <= auctionEndTime, Errors.AUCTION_HAS_ENDED);
         uint256 purchasePrice = modelType == 0
@@ -109,9 +115,9 @@ abstract contract InternalAuction is
             Errors.INSUFFICIENT_TOKEN_BALANCE
         );
 
-        balances[_caller] += unitsOfTokensToBuy;
+        balances[_caller] += unitsOfTokensToBuy * 10**18;
         totalTokensSold += unitsOfTokensToBuy;
-        totalNumberOfTokens -= unitsOfTokensToBuy;
+        // totalNumberOfTokens -= unitsOfTokensToBuy ;
 
         IERC20(acceptableStableCoin).safeTransferFrom(
             _caller,
@@ -129,7 +135,11 @@ abstract contract InternalAuction is
             Errors.CLAIM_AFTER_AUCTION
         );
 
+        // Adjust the amount due by the token's decimals
+        amountDue = amountDue; // assuming the token has 18 decimals
+
         balances[_caller] = 0;
+        // totalNumberOfTokens -= amountDue;
         IERC20(tokenAddress).safeTransfer(_caller, amountDue);
         emit ClaimedPurchasedTokens(_caller, amountDue, tokenAddress);
     }
@@ -144,7 +154,7 @@ abstract contract InternalAuction is
     }
 
     function _withdrawUnsoldTokens() internal onlyCreator {
-        uint256 amount = totalNumberOfTokens - totalTokensSold;
+        uint256 amount = totalNumberOfTokens - (totalTokensSold * 10**18);
         IERC20(tokenAddress).safeTransfer(
             creator,
             amount

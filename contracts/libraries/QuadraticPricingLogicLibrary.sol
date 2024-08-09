@@ -7,19 +7,19 @@ library QuadraticPricingLogicLib {
 
 
     // Calculate the price of the nth token using a quadratic bonding curve
-    function getPriceOfNthToken(uint256 n, uint256 initialPrice, uint256 priceMultiplier) public pure returns (uint256) {
+    function getPriceOfNthToken(uint256 n, uint256 initialPrice, uint256 priceMultiplier) internal pure returns (uint256) {
         return initialPrice + (priceMultiplier * (n ** 2));
     }
 
     // Calculate the sum of squares for the range from n to m
-    function sumOfSquares(uint256 n, uint256 m) public pure returns (uint256) {
+    function sumOfSquares(uint256 n, uint256 m) internal pure returns (uint256) {
         uint256 sumM = (m * (m + 1) * (2 * m + 1)) / 6;
         uint256 sumN = (n * (n + 1) * (2 * n + 1)) / 6;
         return sumM - sumN;
     }
 
     // Calculate the total price for a given amount of tokens without using loops
-    function calculateTotalPrice(uint256 amount, uint256 totalTokensSold, uint256 startingBidPrice, uint256 priceMultiplier) public pure returns (uint256) {
+    function calculateTotalPrice(uint256 amount, uint256 totalTokensSold, uint256 startingBidPrice, uint256 priceMultiplier) internal pure returns (uint256) {
         uint256 n = totalTokensSold;
         uint256 m = n + amount;
 

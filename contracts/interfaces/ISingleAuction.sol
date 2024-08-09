@@ -20,12 +20,12 @@ interface ISingleAuction {
         uint256 unitsOfTokensToBuy
     ) external view returns (uint256);
 
-    function buyTokens(uint256 unitsOfTokensToBuy) external payable;
+    // function buyTokens(uint256 unitsOfTokensToBuy) external payable;
 
     function buyTokensWithStableCoin(uint256 unitsOfTokensToBuy) external;
 
     //TO DO: Add Access control
-    function withdrawRemainingBaseToken() external;
+    // function withdrawRemainingBaseToken() external;
 
     //TO DO: Add Access control
     function withdrawUnsoldTokens() external;

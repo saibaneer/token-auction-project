@@ -716,6 +716,11 @@ struct AuctionCreationParams {
         PricingLogic logic;
     }
 
+struct FundAuctionParams {
+    address tokenAddress;
+    uint256 numberOfTokens;
+}
+
 library Errors {
 
     string internal constant INVALID_RANGE = "Invalid range";
@@ -728,6 +733,7 @@ library Errors {
     string internal constant CLAIM_AFTER_AUCTION = "Claim is possible after auction is expired";
     string internal constant AUCTION_IS_YET_TO_BEGIN = "Auction is yet to begin!";
     string internal constant AUCTION_HAS_ENDED = "Auction has ended!";
+    string internal constant INSUFFICIENT_TOKEN_BALANCE_IN_CONTRACT = "Insufficient Token balance in contract";
 
 }
 
@@ -738,6 +744,14 @@ library Errors {
 pragma solidity ^0.8.24;
 
 interface ISingleAuction {
+
+    event BoughtTokens(address indexed caller, uint256 tokensBought, uint256 amountPaid);
+    event BoughtTokensWithStableCoin(address indexed caller, uint256 tokensBought, uint256 amountPaid, address paymentCurrency);
+    event WithdrewBaseTokens(address indexed caller, uint256 amount);
+    event WithdrewUnsoldTokens(address indexed caller, uint256 amount);
+    event ClaimedPurchasedTokens(address indexed caller, uint256 tokensClaimed, address tokenAddress);
+    event SetSlope(uint256 indexed slope);
+
     function initialize(
         AuctionCreationParams memory _params
     ) external;
@@ -746,7 +760,7 @@ interface ISingleAuction {
         uint256 unitsOfTokensToBuy
     ) external view returns (uint256);
 
-    function buyTokens(uint256 unitsOfTokensToBuy) external payable;
+    // function buyTokens(uint256 unitsOfTokensToBuy) external payable;
 
     function buyTokensWithStableCoin(uint256 unitsOfTokensToBuy) external;
 
@@ -767,8 +781,8 @@ pragma solidity ^0.8.24;
 library LinearPricingLogicLib {
  
 
-    function getAverageLinearPrice(uint256 unitOfTokensToBuy, uint256 chargePerUnitToken, uint256 startingBidPrice, uint256 totalTokensSold) public pure returns(uint256){
-        uint256 currentPrice = startingBidPrice + (chargePerUnitToken + totalTokensSold);
+    function getAverageLinearPrice(uint256 unitOfTokensToBuy, uint256 chargePerUnitToken, uint256 startingBidPrice, uint256 totalTokensSold) internal pure returns(uint256){
+        uint256 currentPrice = startingBidPrice + (chargePerUnitToken * totalTokensSold);
         uint256 priceOfNextToken = currentPrice + ((unitOfTokensToBuy-1) * chargePerUnitToken);
         return unitOfTokensToBuy * (priceOfNextToken + currentPrice)/2;
     }
@@ -786,19 +800,19 @@ library QuadraticPricingLogicLib {
 
 
     // Calculate the price of the nth token using a quadratic bonding curve
-    function getPriceOfNthToken(uint256 n, uint256 initialPrice, uint256 priceMultiplier) public pure returns (uint256) {
+    function getPriceOfNthToken(uint256 n, uint256 initialPrice, uint256 priceMultiplier) internal pure returns (uint256) {
         return initialPrice + (priceMultiplier * (n ** 2));
     }
 
     // Calculate the sum of squares for the range from n to m
-    function sumOfSquares(uint256 n, uint256 m) public pure returns (uint256) {
+    function sumOfSquares(uint256 n, uint256 m) internal pure returns (uint256) {
         uint256 sumM = (m * (m + 1) * (2 * m + 1)) / 6;
         uint256 sumN = (n * (n + 1) * (2 * n + 1)) / 6;
         return sumM - sumN;
     }
 
     // Calculate the total price for a given amount of tokens without using loops
-    function calculateTotalPrice(uint256 amount, uint256 totalTokensSold, uint256 startingBidPrice, uint256 priceMultiplier) public pure returns (uint256) {
+    function calculateTotalPrice(uint256 amount, uint256 totalTokensSold, uint256 startingBidPrice, uint256 priceMultiplier) internal pure returns (uint256) {
         uint256 n = totalTokensSold;
         uint256 m = n + amount;
 
@@ -820,7 +834,7 @@ pragma solidity ^0.8.24;
 
 
 
-contract SharedStorage {
+contract Storage {
     event TokensPurchased(address indexed buyer, uint256 amount, uint256 totalPrice);
 
     uint256 public totalNumberOfTokens;
@@ -855,7 +869,7 @@ pragma solidity ^0.8.24;
 abstract contract InternalAuction is
     ISingleAuction,
     Initializable,
-    SharedStorage
+    Storage
 {
     using SafeERC20 for IERC20;
 
@@ -877,15 +891,22 @@ abstract contract InternalAuction is
         modelType = uint8(_params.logic);
     }
 
+    function _fundAuction(address _caller) internal onlyCreator {
+        require(IERC20(tokenAddress).balanceOf(_caller) >= totalNumberOfTokens, Errors.INSUFFICIENT_TOKEN_BALANCE);
+        IERC20(tokenAddress).safeTransferFrom(_caller, address(this), totalNumberOfTokens);
+    }
+
     function _setSlope(uint256 _m) internal onlyCreator {
         require(
             _m < 1 ether || _m > 0.01 ether,
             Errors.INVALID_RANGE
         );
         chargePerUnitToken = _m;
+        emit SetSlope(chargePerUnitToken);
     }
 
     function _buyTokens(uint256 unitsOfTokensToBuy, address _caller) internal {
+        require(IERC20(tokenAddress).balanceOf(address(this)) > 0 , Errors.INSUFFICIENT_TOKEN_BALANCE_IN_CONTRACT);
         require(chargePerUnitToken != 0, Errors.SET_CHARGE_PER_UNIT_TOKEN);
         require(unitsOfTokensToBuy > 0, Errors.BAD_AMOUNT);
         require(totalTokensSold + unitsOfTokensToBuy <= totalNumberOfTokens);
@@ -914,10 +935,12 @@ abstract contract InternalAuction is
         balances[_caller] += unitsOfTokensToBuy;
         totalTokensSold += unitsOfTokensToBuy;
         totalNumberOfTokens -= unitsOfTokensToBuy;
+        uint256 amount = msg.value;
 
         //pay via base token
-        (bool success, ) = address(this).call{value: msg.value}("");
+        (bool success, ) = address(this).call{value: amount}("");
         require(success, Errors.TRANSACTION_FAILED);
+        emit BoughtTokens(_caller, unitsOfTokensToBuy, amount);
     }
 
     function _buyTokensWithStableCoin(
@@ -926,7 +949,7 @@ abstract contract InternalAuction is
     ) internal {
         require(chargePerUnitToken != 0, Errors.SET_CHARGE_PER_UNIT_TOKEN);
         require(unitsOfTokensToBuy > 0, Errors.BAD_AMOUNT);
-        require(totalTokensSold + unitsOfTokensToBuy <= totalNumberOfTokens);
+        require(totalTokensSold + unitsOfTokensToBuy <= totalNumberOfTokens, Errors.BAD_AMOUNT);
         require(block.timestamp >= auctionStartTime, Errors.AUCTION_IS_YET_TO_BEGIN);
         require(block.timestamp <= auctionEndTime, Errors.AUCTION_HAS_ENDED);
         uint256 purchasePrice = modelType == 0
@@ -957,6 +980,7 @@ abstract contract InternalAuction is
             address(this),
             purchasePrice
         );
+        emit BoughtTokensWithStableCoin(_caller, unitsOfTokensToBuy, purchasePrice, acceptableStableCoin);
     }
 
     function _claimPurchasedTokens(address _caller) internal {
@@ -969,21 +993,27 @@ abstract contract InternalAuction is
 
         balances[_caller] = 0;
         IERC20(tokenAddress).safeTransfer(_caller, amountDue);
+        emit ClaimedPurchasedTokens(_caller, amountDue, tokenAddress);
     }
 
     function _withdrawRemainingBaseToken() internal onlyCreator {
-        (bool success, ) = payable(creator).call{value: address(this).balance}(
+        uint amount = address(this).balance;
+        (bool success, ) = payable(creator).call{value: amount}(
             ""
         );
         require(success, Errors.TRANSACTION_FAILED);
+        emit WithdrewBaseTokens(msg.sender, amount);
     }
 
     function _withdrawUnsoldTokens() internal onlyCreator {
+        uint256 amount = totalNumberOfTokens - totalTokensSold;
         IERC20(tokenAddress).safeTransfer(
             creator,
-            totalNumberOfTokens - totalTokensSold
+            amount
         );
+        emit WithdrewUnsoldTokens(msg.sender, amount);
     }
+
 }
 
 
@@ -999,8 +1029,16 @@ contract AuctionEntrypoint is InternalAuction {
         _initialize(_params);
     }
 
+    function fundAuction() external {
+        _fundAuction(msg.sender);
+    }
+
     function setSlope(uint256 _slope) external {
         _setSlope(_slope);
+    }
+
+     function getSetSlopeSelector() public pure returns(bytes4){
+        return this.setSlope.selector;
     }
 
     function amountDueForPurchase(
@@ -1022,9 +1060,9 @@ contract AuctionEntrypoint is InternalAuction {
         return purchasePrice;
     }
 
-    function buyTokens(uint256 unitsOfTokensToBuy) external payable {
-        _buyTokens(unitsOfTokensToBuy, msg.sender);
-    }
+    // function buyTokens(uint256 unitsOfTokensToBuy) external payable {
+    //     _buyTokens(unitsOfTokensToBuy, msg.sender);
+    // }
 
     function buyTokensWithStableCoin(uint256 unitsOfTokensToBuy) external {
         _buyTokensWithStableCoin(unitsOfTokensToBuy, msg.sender);

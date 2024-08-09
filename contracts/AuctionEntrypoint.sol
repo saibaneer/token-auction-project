@@ -10,8 +10,16 @@ contract AuctionEntrypoint is InternalAuction {
         _initialize(_params);
     }
 
+    function fundAuction() external {
+        _fundAuction(msg.sender);
+    }
+
     function setSlope(uint256 _slope) external {
         _setSlope(_slope);
+    }
+
+     function getSetSlopeSelector() public pure returns(bytes4){
+        return this.setSlope.selector;
     }
 
     function amountDueForPurchase(
@@ -33,9 +41,9 @@ contract AuctionEntrypoint is InternalAuction {
         return purchasePrice;
     }
 
-    function buyTokens(uint256 unitsOfTokensToBuy) external payable {
-        _buyTokens(unitsOfTokensToBuy, msg.sender);
-    }
+    // function buyTokens(uint256 unitsOfTokensToBuy) external payable {
+    //     _buyTokens(unitsOfTokensToBuy, msg.sender);
+    // }
 
     function buyTokensWithStableCoin(uint256 unitsOfTokensToBuy) external {
         _buyTokensWithStableCoin(unitsOfTokensToBuy, msg.sender);
@@ -46,9 +54,9 @@ contract AuctionEntrypoint is InternalAuction {
     }
 
     //TO DO: Add Access control
-    function withdrawRemainingBaseToken() external {
-        _withdrawRemainingBaseToken();
-    }
+    // function withdrawRemainingBaseToken() external {
+    //     _withdrawRemainingBaseToken();
+    // }
 
     //TO DO: Add Access control
     function withdrawUnsoldTokens() external {

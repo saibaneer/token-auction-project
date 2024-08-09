@@ -18,6 +18,11 @@ struct AuctionCreationParams {
         PricingLogic logic;
     }
 
+struct FundAuctionParams {
+    address tokenAddress;
+    uint256 numberOfTokens;
+}
+
 library Errors {
 
     string internal constant INVALID_RANGE = "Invalid range";
@@ -30,5 +35,6 @@ library Errors {
     string internal constant CLAIM_AFTER_AUCTION = "Claim is possible after auction is expired";
     string internal constant AUCTION_IS_YET_TO_BEGIN = "Auction is yet to begin!";
     string internal constant AUCTION_HAS_ENDED = "Auction has ended!";
+    string internal constant INSUFFICIENT_TOKEN_BALANCE_IN_CONTRACT = "Insufficient Token balance in contract";
 
 }

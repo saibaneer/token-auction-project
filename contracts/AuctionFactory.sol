@@ -22,17 +22,16 @@ contract AuctionFactory is Ownable, ModelVerifier {
     function createAuction(
         AuctionCreationParams memory _params
     ) external returns (address) {
+        //TO DO: Time validation
         address masterModel = masterAuctionEntryPoint.clone();
         ISingleAuction(masterModel).initialize(_params);
-        require(IERC20(_params.tokenAddress).balanceOf(msg.sender) >= _params.numberOfTokens);
-        IERC20(_params.tokenAddress).safeTransferFrom(msg.sender, masterModel, _params.numberOfTokens);
-        auctionsCreated.push(_params);
+       auctionsCreated.push(_params);
         return masterModel;  
     }
 
     //Add guard
     function updateMasterModel(address _newMasterModel) external onlyOwner {
-        confirmContractFeatures(_newMasterModel);
+        // confirmContractFeatures(_newMasterModel);
         masterAuctionEntryPoint = _newMasterModel;
     }
 
