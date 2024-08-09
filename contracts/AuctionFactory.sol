@@ -2,27 +2,32 @@
 pragma solidity ^0.8.24;
 
 import "@openzeppelin/contracts/proxy/Clones.sol";
-
+import "./dataStructures/UserDefinedTypes.sol";
+import "./interfaces/ISingleAuction.sol";
 contract AuctionFactory {
-    enum PricingLogic {
-        LinearFunction,
-        QuadraticFunction,
-        PolynomialFunction
-    }
     using Clones for address;
 
-    constructor() {}
+    mapping (UserDefinedTypes.PricingLogic => address) public preferredPricingLogic;
+    address public linearPricingModel;
+    address public quadraticPricingModel;
+    address public polynomialPricingModel;
+
+    constructor() {
+
+    }
 
     //TO DO
     function createAuction(
-        address _tokenAddress,
-        uint256 numberOfTokens,
-        uint256 startingPrice,
-        PricingLogic _logic,
-        address _acceptedStable,
-        address _creator
+        UserDefinedTypes.AuctionCreationParams memory _params
     ) external returns (address) {
-        
+        address model = (preferredPricingLogic[_params.logic]).clone();
+        ISingleAuction(model).initialize(_params);
+        return model;  
+    }
+
+    //TO DO: Add guard
+    function updatePricingModel(UserDefinedTypes.PricingLogic _logic, address _model) public {
+        preferredPricingLogic[_logic] = _model;
     }
 }
 

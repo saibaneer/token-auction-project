@@ -13,8 +13,11 @@ contract SharedStorage {
     address public acceptableStableCoin;
     address public tokenAddress;
     address public creator;
+    uint256 public auctionStartTime;
+    uint256 public auctionEndTime;
+
+    
 
     mapping(address => uint256) public balances;
 
-    
 }
