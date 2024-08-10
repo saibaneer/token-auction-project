@@ -105,7 +105,7 @@ Deploy the contracts to a local or test Ethereum network using Hardhat. You will
 npx hardhat run scripts/deploy.js --network <network-name>
 ```
 
-Replace `<network-name>` with the appropriate network, such as `localhost`, `rinkeby`, or `mainnet`.
+Replace `<network-name>` with the appropriate network, such as `localhost`, `sepolia`, or `mainnet`.
 
 ## Usage
 
@@ -155,3 +155,28 @@ This project is licensed under the MIT License. See the [LICENSE](LICENSE) file 
 ---
 
 This updated `README.md` now includes detailed descriptions of both the Linear and Quadratic pricing models, providing a better understanding of how these models influence the auction dynamics. Feel free to customize further as needed!
+
+
+```mermaid
+classDiagram
+    class Ownable {
+        <<abstract>>
+    }
+    
+    class ModelVerifier {
+        <<abstract>>
+    }
+    
+    Ownable <|-- AuctionFactory
+    ModelVerifier <|-- AuctionFactory
+
+    AuctionFactory --> AuctionEntrypoint : Creates
+    AuctionEntrypoint --> InternalAuction : Inherits
+    InternalAuction --> ISingleAuction : Implements
+    InternalAuction --> Initializable : Inherits
+    InternalAuction --> Storage : Inherits
+
+    AuctionEntrypoint <|-- LinearPricingLogicLib
+    AuctionEntrypoint <|-- QuadraticPricingLogicLib
+
+    ISingleAuction <|.. Storage
