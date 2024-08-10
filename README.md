@@ -46,9 +46,7 @@ The auction system supports two different pricing models: **Linear** and **Quadr
 In the **Linear Pricing Model**, the price of each subsequent token increases linearly based on a fixed increment. The total cost for purchasing tokens is calculated using the formula for the sum of an arithmetic series.
 
 - **Formula**: 
-  \[
-  \text{Total Cost} = (\text{Number of Tokens}) \times \left(\frac{\text{First Token Price} + \text{Last Token Price}}{2}\right)
-  \]
+  Total Cost = (Number of Tokens) * ((First Token Price + Last Token Price) / 2)
   where:
   - `First Token Price = startingBidPrice + (chargePerUnitToken * totalTokensSold)`
   - `Last Token Price = First Token Price + ((unitsOfTokensToBuy - 1) * chargePerUnitToken)`
@@ -60,9 +58,7 @@ This model is straightforward and predictable, making it suitable for auctions w
 In the **Quadratic Pricing Model**, the price of tokens increases quadratically. This model is more aggressive, with prices rising faster as more tokens are sold. The total cost is determined using the sum of squares formula, which reflects the increasing difficulty of acquiring additional tokens.
 
 - **Formula**: 
-  \[
-  \text{Total Cost} = \text{amount} \times \text{startingBidPrice} + \text{priceMultiplier} \times \text{sumOfSquares}(n, m)
-  \]
+  Total Cost = (amount * startingBidPrice) + (priceMultiplier * sumOfSquares(n, m))
   where:
   - `n` is the number of tokens sold before this purchase.
   - `m` is the total number of tokens after the purchase.
