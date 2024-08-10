@@ -36,5 +36,7 @@ library Errors {
     string internal constant AUCTION_IS_YET_TO_BEGIN = "Auction is yet to begin!";
     string internal constant AUCTION_HAS_ENDED = "Auction has ended!";
     string internal constant INSUFFICIENT_TOKEN_BALANCE_IN_CONTRACT = "Insufficient Token balance in contract";
+    string internal constant ADDRESS_ZERO_NOT_ALLOWED = "Zero address not allowed!";
+    string internal constant ZERO_AMOUNT_NOT_ALLOWED = "Zero amount not allowed";
 
 }
