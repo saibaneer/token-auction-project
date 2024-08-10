@@ -706,6 +706,7 @@ enum PricingLogic {
     }
 
 struct AuctionCreationParams {
+        uint256 chargePerUnitTokenInEth;
         address tokenAddress;
         uint256 numberOfTokens;
         uint256 startingPrice;
@@ -734,6 +735,8 @@ library Errors {
     string internal constant AUCTION_IS_YET_TO_BEGIN = "Auction is yet to begin!";
     string internal constant AUCTION_HAS_ENDED = "Auction has ended!";
     string internal constant INSUFFICIENT_TOKEN_BALANCE_IN_CONTRACT = "Insufficient Token balance in contract";
+    string internal constant ADDRESS_ZERO_NOT_ALLOWED = "Zero address not allowed!";
+    string internal constant ZERO_AMOUNT_NOT_ALLOWED = "Zero amount not allowed";
 
 }
 
@@ -765,7 +768,7 @@ interface ISingleAuction {
     function buyTokensWithStableCoin(uint256 unitsOfTokensToBuy) external;
 
     //TO DO: Add Access control
-    function withdrawRemainingBaseToken() external;
+    // function withdrawRemainingBaseToken() external;
 
     //TO DO: Add Access control
     function withdrawUnsoldTokens() external;
@@ -777,14 +780,41 @@ interface ISingleAuction {
 // Original license: SPDX_License_Identifier: UNLICENSED
 pragma solidity ^0.8.24;
 
-
+/// @title LinearPricingLogicLib
+/// @notice Provides functions to calculate prices based on a linear pricing curve.
+/// @dev This library is used to implement linear pricing in an auction or token sale.
 library LinearPricingLogicLib {
- 
 
-    function getAverageLinearPrice(uint256 unitOfTokensToBuy, uint256 chargePerUnitToken, uint256 startingBidPrice, uint256 totalTokensSold) internal pure returns(uint256){
+    /// @notice Calculates the average price for purchasing a specified number of tokens using a linear pricing curve.
+    /// @dev The function assumes that prices increase linearly with each additional token sold.
+    ///      The calculation is based on the formula for the sum of an arithmetic series:
+    ///      Total Cost = (Number of Tokens) * (Average Price)
+    ///      Average Price = (First Token Price + Last Token Price) / 2
+    ///      First Token Price = startingBidPrice + (chargePerUnitToken * totalTokensSold)
+    ///      Last Token Price = First Token Price + ((unitOfTokensToBuy - 1) * chargePerUnitToken)
+    /// @param unitOfTokensToBuy The number of tokens that the user intends to buy.
+    /// @param chargePerUnitToken The price increment for each additional token.
+    /// @param startingBidPrice The starting price of the first token.
+    /// @param totalTokensSold The total number of tokens sold before this purchase.
+    /// @return The total cost for the specified number of tokens.
+    function getAverageLinearPrice(
+        uint256 unitOfTokensToBuy,
+        uint256 chargePerUnitToken,
+        uint256 startingBidPrice,
+        uint256 totalTokensSold
+    ) internal pure returns (uint256) {
+
+        // Calculate the price of the first token in this purchase based on the starting price and the number of tokens sold so far.
         uint256 currentPrice = startingBidPrice + (chargePerUnitToken * totalTokensSold);
-        uint256 priceOfNextToken = currentPrice + ((unitOfTokensToBuy-1) * chargePerUnitToken);
-        return unitOfTokensToBuy * (priceOfNextToken + currentPrice)/2;
+        
+        // Calculate the price of the last token in this purchase.
+        // The last token price is the price of the first token in this purchase plus (unitsOfTokensToBuy - 1) * chargePerUnitToken.
+        uint256 priceOfNextToken = currentPrice + ((unitOfTokensToBuy - 1) * chargePerUnitToken);
+        
+        // The total cost is derived from the formula for the sum of an arithmetic series:
+        // Total Cost = (Number of Tokens) * (First Token Price + Last Token Price) / 2
+        // This formula calculates the total cost by multiplying the number of tokens by the average price of the first and last tokens.
+        return unitOfTokensToBuy * (priceOfNextToken + currentPrice) / 2;
     }
 }
 
@@ -794,32 +824,64 @@ library LinearPricingLogicLib {
 // Original license: SPDX_License_Identifier: UNLICENSED
 pragma solidity ^0.8.24;
 
-
+/// @title QuadraticPricingLogicLib
+/// @notice Provides functions to calculate prices based on a quadratic pricing curve.
+/// @dev This library is used to implement quadratic pricing in an auction or token sale.
 library QuadraticPricingLogicLib {
- 
 
-
-    // Calculate the price of the nth token using a quadratic bonding curve
-    function getPriceOfNthToken(uint256 n, uint256 initialPrice, uint256 priceMultiplier) internal pure returns (uint256) {
+    /// @notice Calculates the price of the nth token using a quadratic bonding curve.
+    /// @dev The price increases quadratically with each subsequent token.
+    ///      The formula used is: Price(n) = initialPrice + priceMultiplier * (n^2)
+    ///      where n is the position of the token in the sequence.
+    /// @param n The position of the token in the sequence (starting from 1).
+    /// @param initialPrice The initial price of the first token.
+    /// @param priceMultiplier The multiplier that affects how quickly the price increases.
+    /// @return The price of the nth token.
+    function getPriceOfNthToken(
+        uint256 n,
+        uint256 initialPrice,
+        uint256 priceMultiplier
+    ) internal pure returns (uint256) {
         return initialPrice + (priceMultiplier * (n ** 2));
     }
 
-    // Calculate the sum of squares for the range from n to m
+    /// @notice Calculates the sum of squares for a range of integers from n to m.
+    /// @dev This function uses the mathematical formula for the sum of squares:
+    ///      Sum of squares = (m * (m + 1) * (2m + 1)) / 6
+    ///      This is applied to both m and n, and the result is the difference between the two.
+    ///      The sum of squares formula is used to calculate the total cost in a quadratic pricing model.
+    /// @param n The starting integer (exclusive).
+    /// @param m The ending integer (inclusive).
+    /// @return The sum of squares from (n+1) to m.
     function sumOfSquares(uint256 n, uint256 m) internal pure returns (uint256) {
         uint256 sumM = (m * (m + 1) * (2 * m + 1)) / 6;
         uint256 sumN = (n * (n + 1) * (2 * n + 1)) / 6;
         return sumM - sumN;
     }
 
-    // Calculate the total price for a given amount of tokens without using loops
-    function calculateTotalPrice(uint256 amount, uint256 totalTokensSold, uint256 startingBidPrice, uint256 priceMultiplier) internal pure returns (uint256) {
-        uint256 n = totalTokensSold;
-        uint256 m = n + amount;
+    /// @notice Calculates the total price for purchasing a given amount of tokens using a quadratic pricing curve.
+    /// @dev This function avoids the use of loops by leveraging the sum of squares formula.
+    ///      The total cost is calculated as:
+    ///      Total Cost = amount * startingBidPrice + priceMultiplier * sumOfSquares(n, m)
+    ///      where n is the number of tokens sold before this purchase and m is the total number of tokens after the purchase.
+    /// @param amount The number of tokens to purchase.
+    /// @param totalTokensSold The total number of tokens sold before this purchase.
+    /// @param startingBidPrice The starting price for each token.
+    /// @param priceMultiplier The multiplier affecting how the price increases with each token.
+    /// @return The total cost for purchasing the specified number of tokens.
+    function calculateTotalPrice(
+        uint256 amount,
+        uint256 totalTokensSold,
+        uint256 startingBidPrice,
+        uint256 priceMultiplier
+    ) internal pure returns (uint256) {
+        uint256 n = totalTokensSold; // The number of tokens sold before this purchase.
+        uint256 m = n + amount; // The total number of tokens after this purchase.
 
-        // Calculate the sum of squares between n and m
+        // Calculate the sum of squares for the range from n+1 to m
         uint256 sumSquares = sumOfSquares(n, m);
 
-        // Total price is the initial price multiplied by the amount, plus the quadratic sum multiplied by the price multiplier
+        // The total price is calculated as the sum of the starting price for all tokens plus the sum of the quadratic increases.
         uint256 totalPrice = amount * startingBidPrice + priceMultiplier * sumSquares;
 
         return totalPrice;
@@ -866,21 +928,63 @@ pragma solidity ^0.8.24;
 
 
 
-abstract contract InternalAuction is
-    ISingleAuction,
-    Initializable,
-    Storage
-{
+/// @title InternalAuction
+/// @notice Provides internal functions for managing auction operations.
+/// @dev This contract is abstract and intended to be inherited by other contracts.
+abstract contract InternalAuction is ISingleAuction, Initializable, Storage {
     using SafeERC20 for IERC20;
 
+    /// @notice Ensures that only the auction creator can call certain functions
     modifier onlyCreator() {
         require(msg.sender == creator, Errors.ACCESS_FORBIDDEN);
         _;
     }
 
+    /// @notice Initializes the auction with the provided parameters.
+    /// @dev This function performs validation checks on the provided parameters to ensure they are valid.
+    ///      It then initializes the auction state variables with these parameters.
+    /// @param _params A struct containing the auction creation parameters.
+    ///        - tokenAddress: The address of the ERC20 token being auctioned. Must not be the zero address.
+    ///        - numberOfTokens: The total number of tokens available for auction. Must be greater than zero.
+    ///        - startingPrice: The starting price for the auction. Must be greater than zero.
+    ///        - acceptedStable: The address of the stablecoin accepted for payment. Must not be the zero address.
+    ///        - creator: The address of the auction creator. Must not be the zero address.
+    ///        - auctionStartTime: The timestamp when the auction is set to start. Must be in the future (currently commented out).
+    ///        - auctionEndTime: The timestamp when the auction is set to end. Must be after the start time (currently commented out).
+    ///        - logic: The pricing logic to be used in the auction (e.g., linear or quadratic).
     function _initialize(
         AuctionCreationParams memory _params
     ) internal initializer {
+        // Check that the token address is valid
+        require(
+            _params.tokenAddress != address(0),
+            Errors.ADDRESS_ZERO_NOT_ALLOWED
+        );
+
+        // Check that the number of tokens is greater than zero
+        require(_params.numberOfTokens > 0, Errors.ZERO_AMOUNT_NOT_ALLOWED);
+
+        // Check that the starting price is greater than zero
+        require(_params.startingPrice > 0, Errors.ZERO_AMOUNT_NOT_ALLOWED);
+
+        // Check that the accepted stablecoin address is valid
+        require(
+            _params.acceptedStable != address(0),
+            Errors.ADDRESS_ZERO_NOT_ALLOWED
+        );
+
+        // Check that the creator address is valid
+        require(_params.creator != address(0), Errors.ADDRESS_ZERO_NOT_ALLOWED);
+
+        require(_params.chargePerUnitTokenInEth < 1 ether || _params.chargePerUnitTokenInEth > 0.01 ether, Errors.INVALID_RANGE);
+
+        // Optional: Uncomment to check that the auction start time is in the future
+        require(_params.auctionStartTime > block.timestamp, "Auction start time must be in the future");
+
+        // Optional: Uncomment to check that the auction end time is after the start time
+        require(_params.auctionEndTime > _params.auctionStartTime, "Auction end time must be after start time");
+
+        // Initialize state variables with the provided parameters
         totalNumberOfTokens = _params.numberOfTokens;
         startingBidPrice = _params.startingPrice;
         acceptableStableCoin = _params.acceptedStable;
@@ -889,28 +993,44 @@ abstract contract InternalAuction is
         auctionStartTime = _params.auctionStartTime;
         auctionEndTime = _params.auctionEndTime;
         modelType = uint8(_params.logic);
+        chargePerUnitToken = _params.chargePerUnitTokenInEth;
     }
 
+    /// @notice Allows the creator to fund the auction with tokens
+    /// @param _caller Address of the creator funding the auction
+    /// @dev Transfers the total number of tokens from the creator to the contract
     function _fundAuction(address _caller) internal onlyCreator {
-        require(IERC20(tokenAddress).balanceOf(_caller) >= totalNumberOfTokens, Errors.INSUFFICIENT_TOKEN_BALANCE);
-        IERC20(tokenAddress).safeTransferFrom(_caller, address(this), totalNumberOfTokens);
-    }
-
-    function _setSlope(uint256 _m) internal onlyCreator {
         require(
-            _m < 1 ether || _m > 0.01 ether,
-            Errors.INVALID_RANGE
+            IERC20(tokenAddress).balanceOf(_caller) >= totalNumberOfTokens,
+            Errors.INSUFFICIENT_TOKEN_BALANCE
         );
-        chargePerUnitToken = _m;
-        emit SetSlope(chargePerUnitToken);
+        IERC20(tokenAddress).safeTransferFrom(
+            _caller,
+            address(this),
+            totalNumberOfTokens
+        );
     }
 
+
+    /// @notice Allows a user to purchase tokens using Ether
+    /// @param unitsOfTokensToBuy The number of tokens the user wants to purchase
+    /// @param _caller The address of the user purchasing the tokens
+    /// @dev Calculates the total price based on the linear or quadratic pricing model and transfers the Ether to the contract
     function _buyTokens(uint256 unitsOfTokensToBuy, address _caller) internal {
-        require(IERC20(tokenAddress).balanceOf(address(this)) > 0 , Errors.INSUFFICIENT_TOKEN_BALANCE_IN_CONTRACT);
+        require(
+            IERC20(tokenAddress).balanceOf(address(this)) > 0,
+            Errors.INSUFFICIENT_TOKEN_BALANCE_IN_CONTRACT
+        );
         require(chargePerUnitToken != 0, Errors.SET_CHARGE_PER_UNIT_TOKEN);
         require(unitsOfTokensToBuy > 0, Errors.BAD_AMOUNT);
-        require(totalTokensSold + unitsOfTokensToBuy <= totalNumberOfTokens);
-        require(block.timestamp >= auctionStartTime, Errors.AUCTION_IS_YET_TO_BEGIN);
+        require(
+            (totalTokensSold + unitsOfTokensToBuy) * 10 ** 18 <=
+                totalNumberOfTokens
+        );
+        require(
+            block.timestamp >= auctionStartTime,
+            Errors.AUCTION_IS_YET_TO_BEGIN
+        );
         require(block.timestamp <= auctionEndTime, Errors.AUCTION_HAS_ENDED);
 
         uint256 purchasePrice = modelType == 0
@@ -927,31 +1047,38 @@ abstract contract InternalAuction is
                 chargePerUnitToken
             );
 
-        require(
-            msg.value >= purchasePrice,
-            Errors.INSUFFICIENT_TOKEN_BALANCE
-        );
+        require(msg.value >= purchasePrice, Errors.INSUFFICIENT_TOKEN_BALANCE);
 
         balances[_caller] += unitsOfTokensToBuy;
         totalTokensSold += unitsOfTokensToBuy;
-        totalNumberOfTokens -= unitsOfTokensToBuy;
         uint256 amount = msg.value;
 
-        //pay via base token
+        // Transfer the received Ether to the contract
         (bool success, ) = address(this).call{value: amount}("");
         require(success, Errors.TRANSACTION_FAILED);
         emit BoughtTokens(_caller, unitsOfTokensToBuy, amount);
     }
 
+    /// @notice Allows a user to purchase tokens using a stablecoin
+    /// @param unitsOfTokensToBuy The number of tokens the user wants to purchase
+    /// @param _caller The address of the user purchasing the tokens
+    /// @dev Transfers the stablecoin from the user to the contract and updates balances
     function _buyTokensWithStableCoin(
         uint256 unitsOfTokensToBuy,
         address _caller
     ) internal {
         require(chargePerUnitToken != 0, Errors.SET_CHARGE_PER_UNIT_TOKEN);
         require(unitsOfTokensToBuy > 0, Errors.BAD_AMOUNT);
-        require(totalTokensSold + unitsOfTokensToBuy <= totalNumberOfTokens, Errors.BAD_AMOUNT);
-        require(block.timestamp >= auctionStartTime, Errors.AUCTION_IS_YET_TO_BEGIN);
+        require(
+            (totalTokensSold + unitsOfTokensToBuy) * 10 ** 18 <=
+                totalNumberOfTokens
+        );
+        require(
+            block.timestamp >= auctionStartTime,
+            Errors.AUCTION_IS_YET_TO_BEGIN
+        );
         require(block.timestamp <= auctionEndTime, Errors.AUCTION_HAS_ENDED);
+
         uint256 purchasePrice = modelType == 0
             ? LinearPricingLogicLib.getAverageLinearPrice(
                 unitsOfTokensToBuy,
@@ -971,49 +1098,51 @@ abstract contract InternalAuction is
             Errors.INSUFFICIENT_TOKEN_BALANCE
         );
 
-        balances[_caller] += unitsOfTokensToBuy;
+        balances[_caller] += unitsOfTokensToBuy * 10 ** 18;
         totalTokensSold += unitsOfTokensToBuy;
-        totalNumberOfTokens -= unitsOfTokensToBuy;
 
         IERC20(acceptableStableCoin).safeTransferFrom(
             _caller,
             address(this),
             purchasePrice
         );
-        emit BoughtTokensWithStableCoin(_caller, unitsOfTokensToBuy, purchasePrice, acceptableStableCoin);
+        emit BoughtTokensWithStableCoin(
+            _caller,
+            unitsOfTokensToBuy,
+            purchasePrice,
+            acceptableStableCoin
+        );
     }
 
+    /// @notice Allows a user to claim purchased tokens after the auction ends
+    /// @param _caller The address of the user claiming the tokens
+    /// @dev Transfers the tokens to the user and resets their balance in the contract
     function _claimPurchasedTokens(address _caller) internal {
         uint256 amountDue = balances[_caller];
         require(amountDue > 0, Errors.NO_TOKENS_TO_CLAIM);
-        require(
-            block.timestamp >= auctionEndTime,
-            Errors.CLAIM_AFTER_AUCTION
-        );
+        require(block.timestamp >= auctionEndTime, Errors.CLAIM_AFTER_AUCTION);
 
         balances[_caller] = 0;
         IERC20(tokenAddress).safeTransfer(_caller, amountDue);
         emit ClaimedPurchasedTokens(_caller, amountDue, tokenAddress);
     }
 
+    /// @notice Allows the creator to withdraw remaining Ether after the auction ends
+    /// @dev Transfers the contract's balance to the creator
     function _withdrawRemainingBaseToken() internal onlyCreator {
         uint amount = address(this).balance;
-        (bool success, ) = payable(creator).call{value: amount}(
-            ""
-        );
+        (bool success, ) = payable(creator).call{value: amount}("");
         require(success, Errors.TRANSACTION_FAILED);
         emit WithdrewBaseTokens(msg.sender, amount);
     }
 
+    /// @notice Allows the creator to withdraw unsold tokens after the auction ends
+    /// @dev Transfers the remaining unsold tokens to the creator
     function _withdrawUnsoldTokens() internal onlyCreator {
-        uint256 amount = totalNumberOfTokens - totalTokensSold;
-        IERC20(tokenAddress).safeTransfer(
-            creator,
-            amount
-        );
+        uint256 amount = totalNumberOfTokens - (totalTokensSold * 10 ** 18);
+        IERC20(tokenAddress).safeTransfer(creator, amount);
         emit WithdrewUnsoldTokens(msg.sender, amount);
     }
-
 }
 
 
@@ -1022,25 +1151,29 @@ abstract contract InternalAuction is
 // Original license: SPDX_License_Identifier: UNLICENSED
 pragma solidity ^0.8.24;
 
+/// @title AuctionEntrypoint
+/// @notice Provides the entry points for external interaction with the auction system.
 contract AuctionEntrypoint is InternalAuction {
+
+    /// @notice Initializes the auction with the provided parameters.
+    /// @dev Calls the internal `_initialize` function to set up the auction parameters.
+    /// @param _params Struct containing all necessary parameters for auction creation.
     function initialize(
         AuctionCreationParams memory _params
     ) external {
         _initialize(_params);
     }
 
+    /// @notice Allows the auction creator to fund the auction by transferring the specified tokens to the contract.
+    /// @dev The function uses the `msg.sender` to identify the caller and pass it to the internal `_fundAuction` function.
     function fundAuction() external {
         _fundAuction(msg.sender);
     }
 
-    function setSlope(uint256 _slope) external {
-        _setSlope(_slope);
-    }
 
-     function getSetSlopeSelector() public pure returns(bytes4){
-        return this.setSlope.selector;
-    }
-
+    /// @notice Calculates the total cost for purchasing a specified number of tokens.
+    /// @param unitsOfTokensToBuy The number of tokens the buyer wants to purchase.
+    /// @return The total cost in the base currency (ETH or stablecoin) for the specified number of tokens.
     function amountDueForPurchase(
         uint256 unitsOfTokensToBuy
     ) external view returns (uint256) {
@@ -1060,25 +1193,30 @@ contract AuctionEntrypoint is InternalAuction {
         return purchasePrice;
     }
 
-    // function buyTokens(uint256 unitsOfTokensToBuy) external payable {
-    //     _buyTokens(unitsOfTokensToBuy, msg.sender);
-    // }
-
+    /// @notice Allows a user to purchase tokens using a stablecoin.
+    /// @dev The function uses the `msg.sender` to identify the caller and pass it to the internal `_buyTokensWithStableCoin` function.
+    /// @param unitsOfTokensToBuy The number of tokens the buyer wants to purchase.
     function buyTokensWithStableCoin(uint256 unitsOfTokensToBuy) external {
         _buyTokensWithStableCoin(unitsOfTokensToBuy, msg.sender);
     }
 
+    /// @notice Allows a user to claim their purchased tokens after the auction has ended.
+    /// @dev The function calls the internal `_claimPurchasedTokens` function, passing the `msg.sender` as the caller.
     function claimPurchasedTokens() external {
         _claimPurchasedTokens(msg.sender);
     }
 
-    //TO DO: Add Access control
-    function withdrawRemainingBaseToken() external {
-        _withdrawRemainingBaseToken();
-    }
-
-    //TO DO: Add Access control
+    /// @notice Allows the auction creator to withdraw any unsold tokens after the auction ends.
+    /// @dev Access control should be added to restrict this function to the auction creator only.
+    /// TO DO: Implement access control.
     function withdrawUnsoldTokens() external {
         _withdrawUnsoldTokens();
+    }
+
+    /// @notice Returns the amount of time left until the auction ends.
+    /// @dev If the auction has already ended, the function returns 0.
+    /// @return The number of seconds remaining until the auction ends.
+    function timeLeftInAuction() external view returns(uint256) {
+        return block.timestamp < auctionEndTime ? auctionEndTime - block.timestamp : 0;
     }
 }

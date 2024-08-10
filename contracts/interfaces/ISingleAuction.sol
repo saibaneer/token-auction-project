@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: UNLICENSED
-pragma solidity ^0.8.24;
+pragma solidity 0.8.20;
 
 import "../data_structures/UserDefinedTypes.sol";
 
@@ -20,13 +20,7 @@ interface ISingleAuction {
         uint256 unitsOfTokensToBuy
     ) external view returns (uint256);
 
-    // function buyTokens(uint256 unitsOfTokensToBuy) external payable;
-
     function buyTokensWithStableCoin(uint256 unitsOfTokensToBuy) external;
 
-    //TO DO: Add Access control
-    // function withdrawRemainingBaseToken() external;
-
-    //TO DO: Add Access control
     function withdrawUnsoldTokens() external;
 }

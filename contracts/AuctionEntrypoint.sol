@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: UNLICENSED
-pragma solidity ^0.8.24;
+pragma solidity 0.8.20;
 
 import "./internal_contracts/InternalAuctionFunctions.sol";
 
@@ -22,12 +22,6 @@ contract AuctionEntrypoint is InternalAuction {
         _fundAuction(msg.sender);
     }
 
-    /// @notice Sets the slope (price increment) for the auction.
-    /// @dev Only the creator of the auction can set the slope. The slope determines the price increment per token.
-    /// @param _slope The slope value to be set (must be between 0.01 and 1 ether).
-    function setSlope(uint256 _slope) external {
-        _setSlope(_slope);
-    }
 
     /// @notice Calculates the total cost for purchasing a specified number of tokens.
     /// @param unitsOfTokensToBuy The number of tokens the buyer wants to purchase.

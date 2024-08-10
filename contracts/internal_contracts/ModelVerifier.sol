@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: UNLICENSED
-pragma solidity ^0.8.24;
+pragma solidity 0.8.20;
 
 abstract contract ModelVerifier {
     bytes4 public constant initializeSelector =
@@ -8,8 +8,6 @@ abstract contract ModelVerifier {
                 "initialize((address,uint256,uint256,address,address,uint256,uint256,PricingLogic))"
             )
         );
-    bytes4 public constant setSlopeSelector =
-        bytes4(keccak256("setSlope(uint256)"));
     bytes4 public constant buyTokensSelector =
         bytes4(keccak256("buyTokens(uint256)"));
     bytes4 public constant buyTokensWithStableCoinSelector =

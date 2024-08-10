@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: UNLICENSED
-pragma solidity ^0.8.24;
+pragma solidity 0.8.20;
 
 import "@openzeppelin/contracts-upgradeable/proxy/utils/Initializable.sol";
 import "@openzeppelin/contracts/token/ERC20/utils/SafeERC20.sol";
@@ -57,11 +57,13 @@ abstract contract InternalAuction is ISingleAuction, Initializable, Storage {
         // Check that the creator address is valid
         require(_params.creator != address(0), Errors.ADDRESS_ZERO_NOT_ALLOWED);
 
+        require(_params.chargePerUnitTokenInEth < 1 ether || _params.chargePerUnitTokenInEth > 0.01 ether, Errors.INVALID_RANGE);
+
         // Optional: Uncomment to check that the auction start time is in the future
-        // require(_params.auctionStartTime > block.timestamp, "Auction start time must be in the future");
+        require(_params.auctionStartTime > block.timestamp, "Auction start time must be in the future");
 
         // Optional: Uncomment to check that the auction end time is after the start time
-        // require(_params.auctionEndTime > _params.auctionStartTime, "Auction end time must be after start time");
+        require(_params.auctionEndTime > _params.auctionStartTime, "Auction end time must be after start time");
 
         // Initialize state variables with the provided parameters
         totalNumberOfTokens = _params.numberOfTokens;
@@ -72,6 +74,7 @@ abstract contract InternalAuction is ISingleAuction, Initializable, Storage {
         auctionStartTime = _params.auctionStartTime;
         auctionEndTime = _params.auctionEndTime;
         modelType = uint8(_params.logic);
+        chargePerUnitToken = _params.chargePerUnitTokenInEth;
     }
 
     /// @notice Allows the creator to fund the auction with tokens
@@ -89,61 +92,6 @@ abstract contract InternalAuction is ISingleAuction, Initializable, Storage {
         );
     }
 
-    /// @notice Sets the slope (price increment per token) for the auction
-    /// @param _m The slope value to be set
-    /// @dev The slope must be between 0.01 ether and 1 ether
-    function _setSlope(uint256 _m) internal onlyCreator {
-        require(_m < 1 ether || _m > 0.01 ether, Errors.INVALID_RANGE);
-        chargePerUnitToken = _m;
-        emit SetSlope(_m);
-    }
-
-    /// @notice Allows a user to purchase tokens using Ether
-    /// @param unitsOfTokensToBuy The number of tokens the user wants to purchase
-    /// @param _caller The address of the user purchasing the tokens
-    /// @dev Calculates the total price based on the linear or quadratic pricing model and transfers the Ether to the contract
-    function _buyTokens(uint256 unitsOfTokensToBuy, address _caller) internal {
-        require(
-            IERC20(tokenAddress).balanceOf(address(this)) > 0,
-            Errors.INSUFFICIENT_TOKEN_BALANCE_IN_CONTRACT
-        );
-        require(chargePerUnitToken != 0, Errors.SET_CHARGE_PER_UNIT_TOKEN);
-        require(unitsOfTokensToBuy > 0, Errors.BAD_AMOUNT);
-        require(
-            (totalTokensSold + unitsOfTokensToBuy) * 10 ** 18 <=
-                totalNumberOfTokens
-        );
-        require(
-            block.timestamp >= auctionStartTime,
-            Errors.AUCTION_IS_YET_TO_BEGIN
-        );
-        require(block.timestamp <= auctionEndTime, Errors.AUCTION_HAS_ENDED);
-
-        uint256 purchasePrice = modelType == 0
-            ? LinearPricingLogicLib.getAverageLinearPrice(
-                unitsOfTokensToBuy,
-                chargePerUnitToken,
-                startingBidPrice,
-                totalTokensSold
-            )
-            : QuadraticPricingLogicLib.calculateTotalPrice(
-                unitsOfTokensToBuy,
-                totalTokensSold,
-                startingBidPrice,
-                chargePerUnitToken
-            );
-
-        require(msg.value >= purchasePrice, Errors.INSUFFICIENT_TOKEN_BALANCE);
-
-        balances[_caller] += unitsOfTokensToBuy;
-        totalTokensSold += unitsOfTokensToBuy;
-        uint256 amount = msg.value;
-
-        // Transfer the received Ether to the contract
-        (bool success, ) = address(this).call{value: amount}("");
-        require(success, Errors.TRANSACTION_FAILED);
-        emit BoughtTokens(_caller, unitsOfTokensToBuy, amount);
-    }
 
     /// @notice Allows a user to purchase tokens using a stablecoin
     /// @param unitsOfTokensToBuy The number of tokens the user wants to purchase

@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: UNLICENSED
-pragma solidity ^0.8.24;
+pragma solidity 0.8.20;
 
 /// @title QuadraticPricingLogicLib
 /// @notice Provides functions to calculate prices based on a quadratic pricing curve.

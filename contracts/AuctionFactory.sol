@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: UNLICENSED
-pragma solidity ^0.8.24;
+pragma solidity 0.8.20;
 
 import "@openzeppelin/contracts/proxy/Clones.sol";
 import "./data_structures/UserDefinedTypes.sol";
@@ -40,11 +40,13 @@ contract AuctionFactory is Ownable, ModelVerifier {
         // Clone the master auction contract to create a new auction instance.
         address masterModel = masterAuctionEntryPoint.clone();
 
+        // Store the auction creation parameters in the array.
+        auctionsCreated.push(_params);
+
         // Initialize the new auction instance with the provided parameters.
         ISingleAuction(masterModel).initialize(_params);
 
-        // Store the auction creation parameters in the array.
-        auctionsCreated.push(_params);
+        
 
         // Return the address of the newly created auction contract.
         return masterModel;  
