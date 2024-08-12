@@ -59,10 +59,8 @@ abstract contract InternalAuction is ISingleAuction, Initializable, Storage {
 
         require(_params.chargePerUnitTokenInEth < 1 ether || _params.chargePerUnitTokenInEth > 0.01 ether, Errors.INVALID_RANGE);
 
-        // Optional: Uncomment to check that the auction start time is in the future
         require(_params.auctionStartTime > block.timestamp, "Auction start time must be in the future");
 
-        // Optional: Uncomment to check that the auction end time is after the start time
         require(_params.auctionEndTime > _params.auctionStartTime, "Auction end time must be after start time");
 
         // Initialize state variables with the provided parameters
