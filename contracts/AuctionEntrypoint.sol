@@ -6,13 +6,13 @@ import "./internal_contracts/InternalAuctionFunctions.sol";
 /// @title AuctionEntrypoint
 /// @notice Provides the entry points for external interaction with the auction system.
 contract AuctionEntrypoint is InternalAuction {
-
-    /// @notice Initializes the auction with the provided parameters.
+    /// @notice Initializes the auction with the provided parameters. 
+    /// Since at least 9 items are needed to initialize the auction logic, passing them 
+    /// individually would take up too much gas, since the cost of memory in function increases at O(n^2).
+    /// Thus, using a single object paramter reduces gas, and avoids stack too deep errors.
     /// @dev Calls the internal `_initialize` function to set up the auction parameters.
     /// @param _params Struct containing all necessary parameters for auction creation.
-    function initialize(
-        AuctionCreationParams memory _params
-    ) external {
+    function initialize(AuctionCreationParams memory _params) external {
         _initialize(_params);
     }
 
@@ -21,7 +21,6 @@ contract AuctionEntrypoint is InternalAuction {
     function fundAuction() external {
         _fundAuction(msg.sender);
     }
-
 
     /// @notice Calculates the total cost for purchasing a specified number of tokens.
     /// @param unitsOfTokensToBuy The number of tokens the buyer wants to purchase.
@@ -68,7 +67,10 @@ contract AuctionEntrypoint is InternalAuction {
     /// @notice Returns the amount of time left until the auction ends.
     /// @dev If the auction has already ended, the function returns 0.
     /// @return The number of seconds remaining until the auction ends.
-    function timeLeftInAuction() external view returns(uint256) {
-        return block.timestamp < auctionEndTime ? auctionEndTime - block.timestamp : 0;
+    function timeLeftInAuction() external view returns (uint256) {
+        return
+            block.timestamp < auctionEndTime
+                ? auctionEndTime - block.timestamp
+                : 0;
     }
 }
